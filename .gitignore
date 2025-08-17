@@ -1,0 +1,23 @@
+# Ignore nohup output files
+# Log files
+*.log
+nohup.out
+.env
+*.pvc
+__pycache__/
+
+# Ignore Terraform state files
+.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+terraform.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
+# Ignore generated lock file 
+.terraform.lock.hcl

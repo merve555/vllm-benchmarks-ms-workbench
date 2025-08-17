@@ -1,0 +1,65 @@
+# vLLM Benchmark Configuration
+# This file contains all configuration parameters for the automated benchmarking
+
+# GCP Project Configuration
+gcp:
+  project_id: "your-gcp-project-id"
+  region: "asia-southeast1"
+  
+# GKE Cluster Configuration
+gke:
+  # TPU Cluster (asia-northeast1-b)
+  tpu_cluster:
+    name: "vllm-benchmark-tpu"
+    zone: "asia-northeast1-b"
+    machine_type: "ct4p-hightpu-4t"
+    node_count: 1
+    tpu_type: "v6e"
+    tpu_topology: "1x1"
+    image_type: "COS_CONTAINERD"
+    disk_size_gb: 100
+    
+  # GPU Cluster (asia-southeast1-b)
+  gpu_cluster:
+    name: "vllm-benchmark-gpu"
+    zone: "asia-southeast1-b"
+    machine_type: "a3-highgpu-8g"
+    node_count: 1
+    gpu_type: "nvidia-h100-80gb"
+    gpu_count: 8
+    image_type: "COS_CONTAINERD"
+    disk_size_gb: 100
+
+# Docker Images
+docker_images:
+  tpu: "vllm/vllm-tpu:nightly"
+  gpu: "vllm/vllm-openai:latest"
+
+# Benchmark Parameters
+benchmark:
+  model: "meta-llama/Llama-3.1-8B-Instruct"
+  input_length: 4000
+  output_length: 16
+  max_model_len: 4096
+  min_cache_hit_pct: 0
+  max_latency_allowed_ms: 100000000000
+  num_seqs_list: [128, 256]
+  num_batched_tokens_list: [512, 1024, 2048, 4096]
+  tensor_parallel_size: 1
+  
+# GCS Configuration
+gcs:
+  bucket_name: "your-vllm-benchmark-bucket"  # TODO: automate this?
+  results_prefix: "vllm-benchmarks"
+  
+# Benchmark Execution
+execution:
+  timeout_minutes: 120
+  retry_attempts: 3
+  cleanup_on_failure: true
+  
+# Logging
+logging:
+  level: "INFO"
+  enable_cloud_logging: true
+  log_retention_days: 30

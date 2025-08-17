@@ -1,0 +1,51 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-gpu-benchmark
+  namespace: vllm-benchmark
+spec:
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-pool
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: vllm-benchmark
+        image: vllm/vllm-openai:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          # Install required packages
+          pip install -q datasets
+          
+          # Set environment variables
+          export MODEL="meta-llama/Llama-3.1-8B-Instruct"
+          export SYSTEM="GPU"
+          export INPUT_LEN=4000
+          export OUTPUT_LEN=16
+          export MAX_MODEL_LEN=4096
+          
+          # Download and run benchmark script
+          curl -s https://raw.githubusercontent.com/vllm-project/vllm/main/benchmarks/auto_tune/auto_tune.sh > /tmp/auto_tune.sh
+          chmod +x /tmp/auto_tune.sh
+          cd /tmp
+          ./auto_tune.sh
+          
+          # Upload results to GCS
+          gsutil -m cp -r /tmp/auto-benchmark/* gs://your-bucket/vllm-benchmarks/GPU/$(date +%Y_%m_%d_%H_%M)/
+        resources:
+          requests:
+            memory: "64Gi"
+            cpu: "32"
+            nvidia.com/gpu: 8
+          limits:
+            memory: "64Gi"
+            cpu: "32"
+            nvidia.com/gpu: 8
+      restartPolicy: Never
+  backoffLimit: 0
