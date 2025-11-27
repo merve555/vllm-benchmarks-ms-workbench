@@ -1,0 +1,23 @@
+# Example terraform.tfvars file
+# Copy this file to terraform.tfvars and update the values
+
+# GCP Project Configuration
+project_id = "your-gcp-project-id"
+region = "asia-southeast1"
+
+# Cluster Configuration
+cluster_name_prefix = "ms-vllm-benchmark"
+
+# GCS Bucket Configuration
+gcs_bucket_name = "your-vllm-benchmark-bucket"
+gcs_bucket_location = "asia-southeast1"
+
+# Cluster Zones (TPU and GPU are in different regions)
+tpu_zone = "asia-northeast1-b"  # TPU v6e available
+gpu_zone = "asia-southeast1-b"  # H100 available
+
+# Hugging Face Token (for accessing models)
+huggingface_token = "your-huggingface-token"
+
+# GPU Configuration
+gpu_use_spot_instances = false  # Set to true to use spot instances for cost savings

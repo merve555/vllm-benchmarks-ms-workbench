@@ -1,0 +1,122 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-tpu-benchmark-from-source
+  namespace: default
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      nodeSelector:
+        cloud.google.com/gke-nodepool: tpu-spot-pool-2
+        cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+        cloud.google.com/gke-tpu-topology: 1x1
+      tolerations:
+        - key: cloud.google.com/gke-tpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: vllm-benchmark
+          image: vllm/vllm-tpu:nightly
+          imagePullPolicy: Always
+          env:
+            - name: MODEL
+              value: "meta-llama/Llama-3.1-8B-Instruct"
+            - name: SYSTEM
+              value: "TPU"
+            - name: INPUT_LEN
+              value: "30"
+            - name: OUTPUT_LEN
+              value: "30"
+            - name: MAX_MODEL_LEN
+              value: "60"
+            - name: NUM_SEQS_LIST
+              value: "64 128 256 512"
+            - name: NUM_BATCHED_TOKENS_LIST
+              value: "512 1024 2048 4096"
+            - name: ENABLE_PREFIX_CACHING
+              value: "false"
+            - name: TP
+              value: "1"
+            - name: GCS_BUCKET
+              value: "merves-vllm-bm-results"
+            - name: RESULTS_PREFIX
+              value: "vllm-benchmarks"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: BASE
+              value: "/tmp"
+            - name: VLLM_LOGGING_LEVEL
+              value: "INFO"
+          command: ["/bin/bash"]
+          args:
+            - -c
+            - |
+              set -e
+              echo "Building vLLM from source for TPU..."
+              
+              # Install build dependencies
+              apt-get update -qq && apt-get install -y -qq git build-essential > /dev/null 2>&1 || true
+              
+              # Clone vLLM and tpu-inference from source
+              WORK_DIR=/workspace
+              cd $WORK_DIR
+              
+              # Clone/update vLLM
+              if [ -d "vllm" ]; then
+                echo "Updating existing vLLM repository..."
+                cd vllm && git pull && git submodule update --init --recursive
+              else
+                echo "Cloning vLLM repository..."
+                git clone --recurse-submodules https://github.com/vllm-project/vllm.git
+                cd vllm
+              fi
+              
+              # Install vLLM from source with TPU support
+              echo "Installing vLLM from source..."
+              pip install -q -r requirements/tpu.txt
+              VLLM_TARGET_DEVICE="tpu" pip install -e .
+              
+              # Clone/update tpu-inference
+              cd $WORK_DIR
+              if [ -d "tpu-inference" ]; then
+                echo "Updating existing tpu-inference repository..."
+                cd tpu-inference && git pull
+              else
+                echo "Cloning tpu-inference repository..."
+                git clone https://github.com/vllm-project/tpu-inference.git
+                cd tpu-inference
+              fi
+              
+              # Install tpu-inference from source
+              echo "Installing tpu-inference from source..."
+              pip install -e .
+              
+              # Verify installation
+              python3 -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
+              python3 -c "import tpu_inference; print('tpu-inference imported successfully')"
+              
+              # Copy and run benchmark script
+              cp /config/auto_tune_benchmark.sh /tmp/auto_tune_benchmark.sh
+              chmod +x /tmp/auto_tune_benchmark.sh
+              cd /tmp
+              ./auto_tune_benchmark.sh
+          resources:
+            requests:
+              google.com/tpu: 1
+            limits:
+              google.com/tpu: 1
+          volumeMounts:
+            - name: benchmark-script
+              mountPath: /config
+      volumes:
+        - name: benchmark-script
+          configMap:
+            name: benchmark-script
+      restartPolicy: Never
+  backoffLimit: 0
+

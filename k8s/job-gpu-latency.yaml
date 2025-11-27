@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-gpu-benchmark-latency
+  namespace: default
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-g4-spot-pool
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "present"
+          effect: NoSchedule
+      containers:
+        - name: vllm-benchmark
+          image: vllm/vllm-openai:latest
+          imagePullPolicy: Always
+          env:
+            - name: MODEL
+              value: "meta-llama/Llama-3.1-8B-Instruct"
+            - name: ENABLE_PREFIX_CACHING
+              value: "false"
+            - name: SYSTEM
+              value: "GPU"
+            - name: INPUT_LEN
+              value: "30"
+            - name: OUTPUT_LEN
+              value: "30"
+            - name: MAX_MODEL_LEN
+              value: "60"
+            - name: MAX_LATENCY_ALLOWED_MS
+              value: "500"
+            - name: TP
+              value: "1"
+            - name: NUM_SEQS_LIST
+              value: "64 128 256 512"
+            - name: NUM_BATCHED_TOKENS_LIST
+              value: "512 1024 2048 4096"
+            - name: GCS_BUCKET
+              value: "merves-vllm-bm-results"
+            - name: RESULTS_PREFIX
+              value: "vllm-benchmarks"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: BASE
+              value: "/tmp"
+            - name: VLLM_LOGGING_LEVEL
+              value: "INFO"
+          command: ["/bin/bash"]
+          args:
+            - -c
+            - |
+              # Copy and run benchmark script
+              cp /config/auto_tune_benchmark.sh /tmp/auto_tune_benchmark.sh
+              chmod +x /tmp/auto_tune_benchmark.sh
+              cd /tmp
+              ./auto_tune_benchmark.sh
+          resources:
+            requests:
+              nvidia.com/gpu: 1
+            limits:
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: benchmark-script
+              mountPath: /config
+      volumes:
+        - name: benchmark-script
+          configMap:
+            name: benchmark-script
+      restartPolicy: Never
+  backoffLimit: 0
+
